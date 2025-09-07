@@ -1,0 +1,63 @@
+### 3. Update Your Component Files
+
+Now, we will make a small change in each component that makes an API call. You need to import the new service and replace `fetch` with `apiRequest`.
+
+**In `src/pages/Login.tsx`:**
+
+* **Add this import at the top:**
+    ```typescript
+    import apiRequest from "@/services/api";
+    ```
+* **Change this line:**
+    ```typescript
+    const response = await fetch("http://localhost:8080/auth/login", { 
+    ```
+* **To this:**
+    ```typescript
+    const data = await apiRequest("/auth/login", { 
+    ```
+    *(Note: The structure of the `login` call is slightly different, so you'll also need to adjust the response handling.)*
+
+**In `src/pages/Register.tsx`:**
+
+* **Add this import at the top:**
+    ```typescript
+    import apiRequest from "@/services/api";
+    ```
+* **Change this line:**
+    ```typescript
+    const response = await fetch("http://localhost:8080/auth/register", {
+    ```
+* **To this:**
+    ```typescript
+    await apiRequest("/auth/register", {
+    ```
+
+**In `src/pages/Dashboard.tsx`:**
+
+* **Add this import at the top:**
+    ```typescript
+    import apiRequest from "@/services/api";
+    ```
+* You will need to replace every instance of `fetch` (for viewing, editing, and deleting data) with a call to `apiRequest`, passing only the endpoint (e.g., `/api/vault`).
+
+**In `src/pages/Encrypt.tsx`:**
+
+* **Add this import at the top:**
+    ```typescript
+    import apiRequest from "@/services/api";
+    ```
+* **Change this line:**
+    ```typescript
+    const response = await fetch(`${API_BASE_URL}/encrypt`, {
+    ```
+* **To this:**
+    ```typescript
+    const response = await apiRequest("/api/vault/encrypt", {
+    ```
+
+**In `src/pages/Admin.tsx`:**
+
+* **Add this import at the top:**
+    ```typescript
+    import apiRequest from "@/services/api";

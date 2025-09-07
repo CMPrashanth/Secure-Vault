@@ -1,0 +1,43 @@
+# --- General ---
+# Ignore operating system files
+.DS_Store
+*.swo
+*.swp
+
+# Ignore IDE/editor configuration files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# --- Backend (Python/FastAPI) ---
+# Ignore the virtual environment folder
+/backend/.venv
+/backend/venv
+/backend/env
+
+# Ignore Python bytecode and cache
+/backend/__pycache__/
+*.pyc
+
+# Ignore sensitive environment variables file
+/backend/.env
+
+# --- Frontend (React/Vite) ---
+/frontend/node_modules/
+
+/frontend/dist/
+
+/frontend/npm-debug.log*
+/frontend/yarn-debug.log*
+/frontend/yarn-error.log*
+/frontend/pnpm-debug.log*
+
+/frontend/.env.local
+/frontend/.env.*.local
+/frontend/.env.production
+
+# /frontend/bun.lockb
