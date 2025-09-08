@@ -155,7 +155,10 @@ def record_login_attempt(db: Session, email: str, ip: str, success: bool):
     user = get_user_by_email(db, email)
     if user:
         if success:
-            user.failed_attempts, user.is_locked, user.lock_until = 0, False, None
+            # This block resets the lockout status on a successful login
+            user.failed_attempts = 0
+            user.is_locked = False
+            user.lock_until = None
         else:
             user.failed_attempts = (user.failed_attempts or 0) + 1
             if user.failed_attempts >= MAX_LOGIN_ATTEMPTS:
