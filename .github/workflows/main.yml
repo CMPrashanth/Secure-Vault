@@ -20,7 +20,8 @@ jobs:
     - name: 'Login to Azure'
       uses: azure/login@v1
       with:
-        creds: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+        # --- THIS LINE IS CORRECTED ---
+        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
 
     - name: 'Build and deploy container app to Azure App Service'
       uses: azure/webapps-deploy@v2
