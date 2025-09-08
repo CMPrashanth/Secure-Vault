@@ -8,8 +8,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'backend/**' # Only run if files in the backend folder change
 
 jobs:
   build-and-deploy:
@@ -27,7 +25,7 @@ jobs:
     - name: 'Build and deploy container app to Azure App Service'
       uses: azure/webapps-deploy@v2
       with:
-        app-name: 'securevault-backend' 
+        app-name: 'securevault-backend' # Your Azure App Service name
         images: 'mcr.microsoft.com/appsvc/staticsite:latest' # Placeholder, the action builds from your Dockerfile
         
     - name: 'Logout of Azure'
