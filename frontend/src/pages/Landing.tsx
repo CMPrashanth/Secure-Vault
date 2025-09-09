@@ -33,9 +33,6 @@ const Landing = () => {
                 <span className="block text-primary-glow">PII Data</span>
                 with Confidence
               </h1>
-              <p className="text-xl mt-4 p-2 bg-red-500 text-white font-mono">
-                DEBUG: API URL is: {import.meta.env.VITE_API_BASE_URL || "--- NOT SET ---"}
-              </p>
               <p className="text-xl text-white/90 mb-8 leading-relaxed">
                 Protect sensitive personally identifiable information with enterprise-grade encryption. 
                 Store, manage, and access your data with complete peace of mind.
