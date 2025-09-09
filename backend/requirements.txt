@@ -5,7 +5,7 @@ cryptography
 pydantic
 azure-identity
 azure-keyvault-keys
-PyMySQL
+mysqlconnector
 python-dotenv
 passlib[bcrypt]
 python-jose[cryptography]
