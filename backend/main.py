@@ -10,6 +10,13 @@ from routes import auth, vault, admin
 # --- App and Rate Limiter Setup ---
 limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(title="Secure PII Service")
+
+# --- ADDED FOR DEBUGGING ---
+@app.get("/")
+def read_root():
+    return {"status": "backend_is_running"}
+# --- END OF DEBUGGING CODE ---
+
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
