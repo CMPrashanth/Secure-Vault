@@ -1,5 +1,4 @@
 import os
-print("--- main.py: Starting to import modules ---")
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -7,8 +6,6 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from db.session import init_db
 from routes import auth, vault, admin
-print("--- main.py: Modules imported successfully ---")
-
 
 # --- App and Rate Limiter Setup ---
 limiter = Limiter(key_func=get_remote_address)
@@ -16,10 +13,15 @@ app = FastAPI(title="Secure PII Service")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# --- Database Initialization on Startup ---
+# --- Database and Router Initialization on Startup ---
 @app.on_event("startup")
 def on_startup():
+    # Initialize the database
     init_db()
+    # Include the API routers
+    app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
+    app.include_router(vault.router, prefix="/api/vault", tags=["Vault"])
+    app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
 
 # --- Production-Ready CORS Configuration ---
 client_origin_url = os.getenv("CLIENT_ORIGIN_URL", "http://localhost:5173")
@@ -34,14 +36,3 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# --- API Routers ---
-print("--- main.py: Attempting to include routers ---")
-app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
-print("--- main.py: Auth router included ---")
-
-app.include_router(vault.router, prefix="/api/vault", tags=["Vault"])
-print("--- main.py: Vault router included ---")
-
-app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
-print("--- main.py: Admin router included. Router setup complete. ---")
