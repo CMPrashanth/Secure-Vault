@@ -17,7 +17,7 @@ from typing import Optional
 import bleach
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-
+from utils.logger import logger
 from db.session import get_pii_db
 from db.pii_db import User, PasswordResetOTP, LoginAttempt
 
@@ -151,11 +151,29 @@ def check_and_handle_lockout(db: Session, email: str, ip_address: str):
         raise HTTPException(status_code=429, detail="Too many failed login attempts from this IP.")
 
 def record_login_attempt(db: Session, email: str, ip: str, success: bool):
+    # --- NEW: JSON Logging for ELK Stack ---
+    log_status = "success" if success else "failure"
+    log_message = f"User login attempt: {log_status}"
+
+    extra_log_data = {
+        "event": "user_login",
+        "status": log_status,
+        "username": email,
+        "ip": ip,
+    }
+
+    # Log failures as warnings and successes as info
+    if success:
+        logger.info(log_message, extra={'extra_data': extra_log_data})
+    else:
+        logger.warning(log_message, extra={'extra_data': extra_log_data})
+    # --- END: JSON Logging ---
+
+    # The rest of the function remains the same (database logic)
     db.add(LoginAttempt(username=email, ip_address=ip, successful=success))
     user = get_user_by_email(db, email)
     if user:
         if success:
-            # This block resets the lockout status on a successful login
             user.failed_attempts = 0
             user.is_locked = False
             user.lock_until = None

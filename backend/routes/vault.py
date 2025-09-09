@@ -1,29 +1,27 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Path
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from collections import defaultdict
 import os
 import re
 
+from backup_script import create_database_backup
 from db.session import get_key_db, get_pii_db
 from db.key_db import FieldKey
 from db.pii_db import User, BasicIdentifiers, GovernmentIdentifiers, FinancialInfo, EmploymentEducation, HealthInsurance
 from services.crypto_service import generate_dek, encrypt_value, decrypt_value
 from services.classification import sensitivity_map
 from utils.key_management import wrap_dek_with_kms, unwrap_dek_with_kms
-from utils.logger import log_metadata
+from utils.logger import log_pii_action
 from utils.validation import validate_and_sanitize
 from routes.auth import get_current_user
+from pydantic import BaseModel
 
 router = APIRouter()
 
 # --- Define the canonical order for display ---
 CANONICAL_CATEGORY_ORDER = [
-    "Basic Identifiers",
-    "Government Identifiers",
-    "Financial Info",
-    "Employment Education",
-    "Health Insurance"
+    "Basic Identifiers", "Government Identifiers", "Financial Info",
+    "Employment Education", "Health Insurance"
 ]
 
 CANONICAL_FIELD_ORDER = {
@@ -145,19 +143,18 @@ async def encrypt_data(
     pii_db: Session = Depends(get_pii_db), current_user: User = Depends(get_current_user)
 ):
     existing_field = key_db.query(FieldKey).filter(
-        FieldKey.user_id == current_user.id,
-        FieldKey.field_name == req.field_name
+        FieldKey.user_id == current_user.id, FieldKey.field_name == req.field_name
     ).first()
     if existing_field:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"The field '{req.field_name}' already exists. Please edit the existing record."
-        )
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"The field '{req.field_name}' already exists.")
+    
     is_valid, sanitized_value = validate_and_sanitize(req.field_name, req.value)
     if not is_valid: raise HTTPException(status_code=422, detail=f"Invalid format for '{req.field_name}'.")
+    
     normalized_value = normalize_pii_value(req.field_name, sanitized_value)
     sensitivity = sensitivity_map.get(req.field_name)
     if not sensitivity: raise HTTPException(status_code=400, detail="Unknown field for classification")
+
     dek_buffer, wrapped_dek = None, None
     try:
         if sensitivity == 'high':
@@ -172,16 +169,17 @@ async def encrypt_data(
             else:
                 dek_buffer = bytearray(generate_dek())
                 wrapped_dek = wrap_dek_with_kms(dek_buffer)
+        
         if not dek_buffer or not wrapped_dek: raise ValueError("DEK generation or wrapping failed.")
         ciphertext, iv, auth_tag = encrypt_value(normalized_value, dek_buffer)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Key management or encryption failed: {e}")
     finally:
-        if dek_buffer:
-            overwrite(dek_buffer)
-            del dek_buffer
+        if dek_buffer: overwrite(dek_buffer)
+
     key_db.add(FieldKey(user_id=current_user.id, category=req.category, field_name=req.field_name, sensitivity=sensitivity, wrapped_dek=wrapped_dek, iv=iv, auth_tag=auth_tag, key_salt=os.urandom(16)))
     key_db.commit()
+
     PiiModel = CATEGORY_MODEL_MAP.get(req.category)
     user_record = pii_db.query(PiiModel).filter(PiiModel.user_id == current_user.id).first()
     if user_record:
@@ -189,7 +187,9 @@ async def encrypt_data(
     else:
         pii_db.add(PiiModel(**{"user_id": current_user.id, req.field_name: ciphertext}))
     pii_db.commit()
-    log_metadata(current_user.id, req.category, req.field_name, sensitivity, "encrypted")
+
+    create_database_backup()
+    log_pii_action(current_user.id, current_user.name, req.category, req.field_name, sensitivity, "encrypted")
     return {"status": "success", "message": f"{req.field_name} encrypted successfully"}
 
 @router.put("/field")
@@ -199,9 +199,11 @@ async def update_field(
 ):
     is_valid, sanitized_value = validate_and_sanitize(req.field_name, req.new_value)
     if not is_valid: raise HTTPException(status_code=422, detail=f"Invalid format for '{req.field_name}'.")
+    
     normalized_value = normalize_pii_value(req.field_name, sanitized_value)
     key_record = key_db.query(FieldKey).filter(FieldKey.user_id == current_user.id, FieldKey.field_name == req.field_name).first()
     if not key_record: raise HTTPException(status_code=404, detail="Key not found.")
+
     dek_buffer = None
     try:
         dek_bytes = unwrap_dek_with_kms(key_record.wrapped_dek)
@@ -210,17 +212,20 @@ async def update_field(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Encryption failed: {e}")
     finally:
-        if dek_buffer:
-            overwrite(dek_buffer)
-            del dek_buffer
+        if dek_buffer: overwrite(dek_buffer)
+
     PiiModel = CATEGORY_MODEL_MAP.get(req.category)
     pii_record = pii_db.query(PiiModel).filter(PiiModel.user_id == current_user.id).first()
     if not pii_record: raise HTTPException(status_code=404, detail="PII record not found.")
+    
     setattr(pii_record, req.field_name, new_ciphertext)
     pii_db.commit()
+
     key_record.iv, key_record.auth_tag = new_iv, new_auth_tag
     key_db.commit()
-    log_metadata(current_user.id, req.category, req.field_name, key_record.sensitivity, "updated")
+
+    create_database_backup()
+    log_pii_action(current_user.id, current_user.name, req.category, req.field_name, key_record.sensitivity, "updated")
     return {"status": "success", "message": f"{req.field_name} updated successfully."}
 
 @router.delete("/field")
@@ -230,15 +235,19 @@ async def delete_field(
 ):
     key_record = key_db.query(FieldKey).filter(FieldKey.user_id == current_user.id, FieldKey.field_name == req.field_name).first()
     if not key_record: raise HTTPException(status_code=404, detail="Field not found.")
+    
     sensitivity = key_record.sensitivity
     key_db.delete(key_record)
     key_db.commit()
+    
     PiiModel = CATEGORY_MODEL_MAP.get(req.category)
     pii_record = pii_db.query(PiiModel).filter(PiiModel.user_id == current_user.id).first()
     if pii_record:
         setattr(pii_record, req.field_name, None)
         pii_db.commit()
-    log_metadata(current_user.id, req.category, req.field_name, sensitivity, "deleted_field")
+    
+    create_database_backup()
+    log_pii_action(current_user.id, current_user.name, req.category, req.field_name, sensitivity, "deleted_field")
     return {"status": "success", "message": f"{req.field_name} deleted."}
 
 @router.delete("/category/{category_name}")
@@ -249,12 +258,14 @@ async def delete_category(
     deleted_count = key_db.query(FieldKey).filter(FieldKey.user_id == current_user.id, FieldKey.category == category_name).delete()
     if deleted_count == 0: raise HTTPException(status_code=404, detail="No records found in this category.")
     key_db.commit()
+
     PiiModel = CATEGORY_MODEL_MAP.get(category_name)
     if PiiModel:
         pii_record = pii_db.query(PiiModel).filter(PiiModel.user_id == current_user.id).first()
         if pii_record:
             pii_db.delete(pii_record)
             pii_db.commit()
-    log_metadata(current_user.id, category_name, "ALL_FIELDS", "N/A", "deleted_category")
-    return {"status": "success", "message": f"Category '{category_name}' deleted."}
 
+    create_database_backup()
+    log_pii_action(current_user.id, current_user.name, category_name, "ALL_FIELDS", "N/A", "deleted_category")
+    return {"status": "success", "message": f"Category '{category_name}' deleted."}
