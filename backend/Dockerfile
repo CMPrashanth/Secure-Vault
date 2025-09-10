@@ -15,7 +15,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Expose the port OnRender expects
-EXPOSE 10000
-
-# The command to run the application on the correct port
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "10000"]
+CMD uvicorn main:app --host 0.0.0.0 --port $PORT
