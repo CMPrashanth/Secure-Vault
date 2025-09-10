@@ -116,39 +116,39 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if user is None: raise credentials_exception
     return user
 
+resend.api_key = os.getenv("RESEND_API_KEY")
+
 def send_email_fully_formatted(recipient: str, subject: str, body: str):
     """
-    Sends an email using the Mailgun API.
+    Sends an email using the Resend API.
     """
-    mailgun_api_key = os.getenv("MAILGUN_API_KEY")
-    mailgun_domain = os.getenv("MAILGUN_DOMAIN")
-    sender_email = os.getenv("SENDER_EMAIL")
+    # For Resend's test setup, the sender is fixed
+    sender_email = "onboarding@resend.dev"
 
-    if not all([mailgun_api_key, mailgun_domain, sender_email]):
-        print("WARN: Mailgun environment variables not fully set. Skipping email.")
+    if not resend.api_key:
+        print("WARN: RESEND_API_KEY not set. Skipping email.")
         return False
-
+        
     try:
-        response = requests.post(
-            f"https://api.mailgun.net/v3/{mailgun_domain}/messages",
-            auth=("api", mailgun_api_key),
-            data={
-                "from": f"{COMPANY_NAME} <{sender_email}>",
-                "to": [recipient],
-                "subject": subject,
-                "html": body
-            })
-
-        if response.status_code == 200:
-            print(f"Email sent successfully to {recipient} via Mailgun.")
+        params = {
+            "from": f"{COMPANY_NAME} <{sender_email}>",
+            "to": [recipient],
+            "subject": subject,
+            "html": body,
+        }
+        
+        email = resend.Emails.send(params)
+        
+        # Check if the email was sent successfully by checking for an ID
+        if email.get("id"):
+            print(f"Email sent successfully to {recipient}. Message ID: {email.get('id')}")
             return True
         else:
-            print(f"Error sending email: Mailgun returned status {response.status_code}")
-            print(response.text)
+            print(f"Error sending email: Resend returned an error: {email}")
             return False
             
     except Exception as e:
-        print(f"An exception occurred while sending email with Mailgun: {e}")
+        print(f"An exception occurred while sending email with Resend: {e}")
         return False
 
 def check_and_handle_lockout(db: Session, email: str, ip_address: str):
