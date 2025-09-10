@@ -4,7 +4,7 @@ FROM python:3.11-slim
 # Set the working directory inside the container
 WORKDIR /app
 
-# --- NEW: Install MySQL client for backups ---
+# Install MySQL client for backups
 RUN apt-get update && apt-get install -y default-mysql-client
 
 # Copy requirements and the SSL certificate first to leverage caching
@@ -17,5 +17,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application's code into the container
 COPY . .
 
-# The command to run the application using the port from Railway
+# This command correctly uses the $PORT variable from Railway
 CMD uvicorn main:app --host 0.0.0.0 --port $PORT
