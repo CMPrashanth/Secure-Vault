@@ -21,7 +21,7 @@ from slowapi.util import get_remote_address
 from utils.logger import logger
 from db.session import get_pii_db
 from db.pii_db import User, PasswordResetOTP, LoginAttempt
-
+import resend
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
