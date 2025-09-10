@@ -1,7 +1,7 @@
 import subprocess
 import os
 from dotenv import load_dotenv
-from urllib.parse import urlparse, unquote
+import re
 
 # Load environment variables from .env file
 load_dotenv()
@@ -15,21 +15,31 @@ BACKUP_DIR = "/data/backups"
 BACKUP_FILENAME = "latest_full_backup.sql"
 
 def parse_db_url(url: str):
-    """Parses a SQLAlchemy-style database URL to extract components."""
+    """
+    Parses a SQLAlchemy-style database URL to extract components using regex,
+    which is more robust for different URL formats.
+    """
     if not url:
         return None
-    try:
-        parsed = urlparse(url)
-        return {
-            "user": unquote(parsed.username),
-            "password": unquote(parsed.password),
-            "host": parsed.hostname,
-            "port": str(parsed.port or 3306),
-            "db_name": parsed.path.lstrip('/'),
-        }
-    except Exception as e:
-        print(f"Error parsing database URL: {e}")
+    
+    # Regex to capture user, password, host, port, and db_name
+    # It handles mysql:// or mysql+mysqlconnector:// prefixes
+    pattern = re.compile(
+        r"mysql(\+mysqlconnector)?://"
+        r"(?P<user>[^:]+):"
+        r"(?P<password>[^@]+)@"
+        r"(?P<host>[^:/]+):"
+        r"(?P<port>\d+)/"
+        r"(?P<db_name>.+)"
+    )
+    
+    match = pattern.match(url)
+    if not match:
+        print(f"Error: Could not parse the database URL format.")
         return None
+        
+    return match.groupdict()
+
 
 def create_database_backup():
     """
@@ -39,7 +49,7 @@ def create_database_backup():
     key_db_creds = parse_db_url(KEY_DB_URL)
 
     if not pii_db_creds or not key_db_creds:
-        print("Error: Database URLs are not configured correctly in the .env file.")
+        print("Error: Database URLs are not configured correctly or could not be parsed.")
         return False
 
     # Since both databases are on different servers, we must back them up separately
