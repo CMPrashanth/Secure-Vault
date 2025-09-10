@@ -9,7 +9,9 @@ from routes import auth, vault, admin
 
 # --- App and Rate Limiter Setup ---
 limiter = Limiter(key_func=get_remote_address)
-app = FastAPI(title="Secure PII Service")
+# --- MODIFICATION: Add redirect_slashes=True ---
+app = FastAPI(title="Secure PII Service", redirect_slashes=True)
+# --- END MODIFICATION ---
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -25,13 +27,10 @@ def on_startup():
 
 # --- Production-Ready CORS Configuration ---
 client_origin_url = os.getenv("CLIENT_ORIGIN_URL", "http://localhost:5173")
-
-# Updated origins list to include your Vercel frontend URL
 origins = [
     client_origin_url,
     "https://secure-vault-eight-theta.vercel.app"
 ]
-
 if "localhost" not in client_origin_url:
     origins.extend(["http://localhost:5173", "http://127.0.0.1:5173"])
 
