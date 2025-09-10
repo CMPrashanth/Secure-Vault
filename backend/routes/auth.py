@@ -116,22 +116,29 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if user is None: raise credentials_exception
     return user
 
-resend.api_key = os.getenv("RESEND_API_KEY")
 
 def send_email_fully_formatted(recipient: str, subject: str, body: str):
     """
     Sends an email using the Resend API.
     """
-    # For Resend's test setup, the sender is fixed
-    sender_email = "onboarding@resend.dev"
-
-    if not resend.api_key:
+    # --- MODIFICATION START ---
+    # Read the API key from environment variables inside the function
+    api_key = os.getenv("RESEND_API_KEY")
+    
+    if not api_key:
         print("WARN: RESEND_API_KEY not set. Skipping email.")
         return False
         
+    # Initialize the Resend client with the key
+    resend.api_key = api_key
+    # --- MODIFICATION END ---
+    
+    # For Resend's test setup, the sender is fixed
+    sender_email = "onboarding@resend.dev"
+        
     try:
         params = {
-            "from": f"{COMPANY_NAME} <{sender_email}>",
+            "from": f"Secure Vault <{sender_email}>",
             "to": [recipient],
             "subject": subject,
             "html": body,
@@ -139,7 +146,6 @@ def send_email_fully_formatted(recipient: str, subject: str, body: str):
         
         email = resend.Emails.send(params)
         
-        # Check if the email was sent successfully by checking for an ID
         if email.get("id"):
             print(f"Email sent successfully to {recipient}. Message ID: {email.get('id')}")
             return True
@@ -148,7 +154,11 @@ def send_email_fully_formatted(recipient: str, subject: str, body: str):
             return False
             
     except Exception as e:
+        # Print a more detailed error message
         print(f"An exception occurred while sending email with Resend: {e}")
+        # To see the full error from Resend, you can print the error's response if available
+        if hasattr(e, 'response') and e.response is not None:
+            print(f"Resend API Response: {e.response.text}")
         return False
 
 def check_and_handle_lockout(db: Session, email: str, ip_address: str):
