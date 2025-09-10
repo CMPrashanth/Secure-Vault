@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 import re
 import os
 import random
+import requests
 import string
 import smtplib
 from email.mime.text import MIMEText
@@ -116,26 +117,38 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     return user
 
 def send_email_fully_formatted(recipient: str, subject: str, body: str):
-    if not SMTP_USERNAME or not SMTP_PASSWORD:
-        print("WARN: SMTP_USERNAME or SMTP_PASSWORD not set. Skipping email.")
+    """
+    Sends an email using the Mailgun API.
+    """
+    mailgun_api_key = os.getenv("MAILGUN_API_KEY")
+    mailgun_domain = os.getenv("MAILGUN_DOMAIN")
+    sender_email = os.getenv("SENDER_EMAIL")
+
+    if not all([mailgun_api_key, mailgun_domain, sender_email]):
+        print("WARN: Mailgun environment variables not fully set. Skipping email.")
         return False
+
     try:
-        msg = MIMEMultipart('alternative')
-        msg['From'] = f"{COMPANY_NAME} <{SMTP_USERNAME}>"
-        msg['To'] = recipient
-        msg['Subject'] = subject
-        msg.attach(MIMEText(re.sub('<[^<]+?>', '', body), 'plain'))
-        msg.attach(MIMEText(body, 'html'))
-        
-        server = smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT) if SMTP_PORT == 465 else smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
-        if SMTP_PORT != 465: server.starttls()
+        response = requests.post(
+            f"https://api.mailgun.net/v3/{mailgun_domain}/messages",
+            auth=("api", mailgun_api_key),
+            data={
+                "from": f"{COMPANY_NAME} <{sender_email}>",
+                "to": [recipient],
+                "subject": subject,
+                "html": body
+            })
+
+        if response.status_code == 200:
+            print(f"Email sent successfully to {recipient} via Mailgun.")
+            return True
+        else:
+            print(f"Error sending email: Mailgun returned status {response.status_code}")
+            print(response.text)
+            return False
             
-        server.login(SMTP_USERNAME, SMTP_PASSWORD)
-        server.send_message(msg)
-        server.quit()
-        return True
     except Exception as e:
-        print(f"Error sending email: {e}")
+        print(f"An exception occurred while sending email with Mailgun: {e}")
         return False
 
 def check_and_handle_lockout(db: Session, email: str, ip_address: str):
