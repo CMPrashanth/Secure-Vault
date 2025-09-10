@@ -25,7 +25,13 @@ def on_startup():
 
 # --- Production-Ready CORS Configuration ---
 client_origin_url = os.getenv("CLIENT_ORIGIN_URL", "http://localhost:5173")
-origins = [client_origin_url]
+
+# Updated origins list to include your Vercel frontend URL
+origins = [
+    client_origin_url,
+    "https://secure-vault-eight-theta.vercel.app"
+]
+
 if "localhost" not in client_origin_url:
     origins.extend(["http://localhost:5173", "http://127.0.0.1:5173"])
 
