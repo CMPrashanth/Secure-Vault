@@ -11,7 +11,7 @@ load_dotenv()
 PII_DB_URL = os.getenv("PII_DATABASE_URL")
 KEY_DB_URL = os.getenv("KEY_DATABASE_URL")
 
-BACKUP_DIR = r"C:\DailyDBBackups" # Raw string to prevent path issues
+BACKUP_DIR = "/data/backups"
 BACKUP_FILENAME = "latest_full_backup.sql"
 
 def parse_db_url(url: str):
